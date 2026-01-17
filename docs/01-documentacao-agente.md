@@ -10,7 +10,7 @@
   
 - Um assistente financeiro agnóstico a provedores. O FinAssist Pro oferece uma solução flexível onde o usuário escolhe entre:
 
-  1. Modo Local (Privacidade Total): Processamento 100% offline via Ollama + DeepSeek.
+  1. Modo Local (Privacidade Total): Processamento 100% offline via Ollama + Llama3.
 
   2. Modo Nuvem (Alta Performance): Integração com GPT-4 ou Gemini para insights avançados. O agente resolve dúvidas financeiras, realiza cálculos de juros e organiza despesas de forma proativa.
 
@@ -49,7 +49,7 @@
 flowchart TD
     A[Usuário] --> B[Interface Chainlit]
     B --> C{Orquestrador/Factory}
-    C -->|Offline| D[Ollama + DeepSeek-R1]
+    C -->|Offline| D[Ollama + llama3]
     C -->|Online| E[OpenAI GPT / Google Gemini]
     D --> F[Base de Conhecimento Local]
     E --> F[Base de Conhecimento Local]
@@ -64,7 +64,7 @@ flowchart TD
 |------------|-----------|
 | Interface | Chatbot profissional desenvolvido em Chainlit com suporte a streaming e logs de pensamento. |
 | Orchestrator | Camada Python (Factory Pattern) que gerencia a troca dinâmica de LLMs. |
-| LLM Local | DeepSeek-R1 via Ollama (Privacidade e Custo Zero). |
+| LLM Local | llama3 via Ollama (Privacidade e Custo Zero). |
 | LLM Cloud | GPT-4o ou Gemini 1.5 Pro (Raciocínio avançado via API). |
 | Base de Conhecimento | Documentos locais (CSV/PDF) processados para evitar alucinações |
 
