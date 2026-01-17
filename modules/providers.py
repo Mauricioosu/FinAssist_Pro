@@ -32,25 +32,43 @@ class OllamaProvider(LLMProvider):
 # MODO NUVEM: GEMINI (Google)
 class GeminiProvider(LLMProvider):
     def __init__(self, api_key):
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-pro')
+        self.api_key = api_key
+        if api_key:
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-pro')
+        else:
+            self.model = None
 
     async def generate_response(self, system_prompt, user_query):
-        full_prompt = f"{system_prompt}\n\nPergunta: {user_query}"
-        response = await self.model.generate_content_async(full_prompt)
-        return response.text
+        if not self.model:
+            return "Erro: Chave API do Gemini não configurada. Verifique as configurações no navegador."
+        
+        try:
+            full_prompt = f"{system_prompt}\n\nPergunta: {user_query}"
+            response = await self.model.generate_content_async(full_prompt)
+            return response.text
+        except Exception as e:
+            return f"Erro ao processar com Gemini: {str(e)}"
 
 # MODO NUVEM: OPENAI (GPT-4o)
 class OpenAIProvider(LLMProvider):
     def __init__(self, api_key):
-        self.client = openai.AsyncOpenAI(api_key=api_key)
+        self.client = openai.AsyncOpenAI(api_key=api_key) if api_key else None
 
-    async def generate_response(self, system_prompt, user_query):
-        response = await self.client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
+async def generate_response(self, system_prompt, user_query):
+        if not self.client:
+            return "Erro: Chave OpenAI não encontrada. Insira-a nas configurações."
+        try:
+            messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_query}
             ]
-        )
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                temperature=0.2,
+                max_tokens=500
+            )
+        except Exception as e:
+            return f"Erro ao processar com OpenAI: {str(e)}"
         return response.choices[0].message.content

@@ -80,3 +80,16 @@ async def main(message: cl.Message):
 
     response = await orchestrator.run(message.content)
     await cl.Message(content=response).send()
+
+def validate_knowledge_base():
+    files = [
+        "data/historico_atendimento.csv",
+        "data/perfil_investidor.json",
+        "data/produtos_financeiros.json",
+        "data/transacoes.csv",
+        "data/objetivos_financeiros.json"
+    ]
+    missing = [f for f in files if not os.path.exists(f)]
+    if missing:
+        print(f"⚠️ Alerta: Arquivos ausentes: {missing}")
+    return len(missing) == 0
