@@ -7,8 +7,9 @@ from modules.retriever import FinancialRetriever
 from modules.providers import OllamaProvider, OpenAIProvider, GeminiProvider
 
 class FinAssistOrchestrator:
-    def __init__(self, mode="local", data=None): 
+    def __init__(self, mode="local", data=None,api_key=None): 
         self.mode = mode
+        self.api_key = api_key
         self.data = data # Armazena a "Base de Verdade"
         self.provider = self._get_provider()
         
@@ -40,3 +41,16 @@ class FinAssistOrchestrator:
         full_system_prompt = f"{self.system_prompt_base}\n\n### CONTEXTO DE VERDADE ###\n{context}"
         
         return await self.provider.generate_response(full_system_prompt, user_query)
+    
+class LLMFactory:
+    @staticmethod
+    def get_model(mode="online"):
+        if mode == "offline":
+            # Configuração para Ollama + llama3
+            return "ollama/llama3"
+        else:
+            # Configuração para GPT-4o ou Gemini 1.5 Pro
+            return "openai/gpt-4o"
+
+# Uso no fluxo do Orquestrador
+model_choice = LLMFactory.get_model(mode="online")

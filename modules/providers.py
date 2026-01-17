@@ -13,9 +13,13 @@ class OllamaProvider(LLMProvider):
     def __init__(self, model="llama3:8b"):
         self.model = model
         self.url = "http://localhost:11434/api/generate"
+        self.options = {
+            "temperature": 0.2, # maior precisão em dados financeiros
+            "num_predict": 500  # Limite para respostas diretas e rápidas
+        }
 
     async def generate_response(self, system_prompt, user_query):
-        # Implementação de Privacidade Total conforme
+        # Implementação de Privacidade Total e Segurança de Dados
         payload = {
             "model": self.model,
             "prompt": f"{system_prompt}\n\nUsuário: {user_query}",

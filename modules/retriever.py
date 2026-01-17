@@ -1,34 +1,33 @@
-import pandas as pd
 import json
-import chainlit as cl
 
 class FinancialRetriever:
-    def __init__(self, data=None):
-        self.data = data if data else cl.user_session.get("financial_data")
-    
-    def get_relevant_context(self, user_query):
-        if self.data is None:
-            return "Erro: Base de conhecimento não carregada."
-        
-        query = user_query.lower()
+    def __init__(self, data):
+        # Garante que data seja ao menos um dicionário vazio para evitar erros de inicialização
+        self.data = data if data is not None else {}
+
+    def get_relevant_context(self, query: str):
         context_parts = []
+        query_lower = query.lower()
 
-        perfil_data = self.data.get('perfil')
-        if perfil_data:
-            context_parts.append(f"### PERFIL DO CLIENTE ###\n{json.dumps(perfil_data, indent=2, ensure_ascii=False)}")
+        # Metas
+        if any(word in query_lower for word in ["meta", "objetivo", "viagem", "reserva"]):
+            metas = self.data.get('objetivos_financeiros')
+            if metas:
+                context_parts.append(f"### METAS ATIVAS ###\n{json.dumps(metas, indent=2)}")
 
-        metas_data = self.data.get('metas') or self.data.get('objetivos')
-        if metas_data and any(word in query for word in ["viagem", "meta", "objetivo", "comprar", "alcançar", "reserva"]):
-            context_parts.append(f"### METAS ATIVAS ###\n{json.dumps(metas_data, indent=2, ensure_ascii=False)}")
+        # Transações e Gastos
+        if any(word in query_lower for word in ["gasto", "comprar", "extrato", "caro"]):
+            transacoes = self.data.get('transacoes')
+            if transacoes is not None:
+                context_parts.append(f"### ÚLTIMAS TRANSAÇÕES ###\n{transacoes.tail(10).to_csv(index=False)}")
 
-        transacoes_data = self.data.get('transacoes')
-        if transacoes_data and any(word in query for word in ["gasto", "dinheiro", "extrato", "compras", "lazer", "valor", "saldo"]):
-            df = pd.DataFrame(transacoes_data)
-            df.tail(5)  # evitar envio de dados desnecessários
+        # Perfil e Produtos
+        if any(word in query_lower for word in ["investir", "dinheiro", "aplicar", "rendimento"]):
+            perfil = self.data.get('perfil_investidor')
+            produtos = self.data.get('produtos_financeiros')
+            if perfil:
+                context_parts.append(f"### PERFIL DO INVESTIDOR ###\n{json.dumps(perfil, indent=2)}")
+            if produtos:
+                context_parts.append(f"### PRODUTOS DISPONÍVEIS ###\n{json.dumps(produtos, indent=2)}")
 
-            if not df.empty:
-                resumo_gastos = df.groupby('categoria')['valor'].sum().to_dict()
-                context_parts.append(f"### RESUMO DE GASTOS POR CATEGORIA ###\n{resumo_gastos}")
-                context_parts.append(f"### ÚLTIMAS TRANSAÇÕES ###\n{df.tail(5).to_string(index=False)}")
-
-        return "\n\n".join(context_parts)
+        return "\n\n".join(context_parts) if context_parts else "Forneça uma visão geral baseada no saldo disponível."
