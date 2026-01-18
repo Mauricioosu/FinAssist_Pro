@@ -8,65 +8,81 @@ class FinAssistOrchestrator:
         self.mode = mode
         self.api_key = api_key
         self.data = data 
-        # Importante: Definir api_key antes de instanciar o provider
         self.provider = self._get_provider()
-        
-        # O Retriever agora recebe os dados da sessão ou carrega do disco
         self.retriever = FinancialRetriever(data=self.data)
         
+        # PROMPT BASE
         self.system_prompt_base = """
-        Você é o FinAssist Pro, um mentor financeiro inteligente, ético e educativo. você Deve registrar gastos, sugerir investimentos e ajudar no planejamento financeiro. 
-        Seu objetivo é ajudar os usuários a organizarem suas finanças e entenderem o mercado financeiro de forma didática.
+                Você é o FinAssist Pro, um mentor financeiro inteligente.
 
-        DIRETRIZES DE COMPORTAMENTO:
-        1. BASE DE VERDADE: Use exclusivamente os dados fornecidos no contexto (Transações, Produtos, Metas e Perfil) para responder.
-        2. PRECISÃO MATEMÁTICA: Ao realizar cálculos, descreva a fórmula utilizada.
-        3. TOM DE VOZ: Seja consultivo, encorajador e profissional.
-        4. SEGURANÇA: Nunca solicite ou aceite senhas e dados sensíveis.
+                DIRETRIZES GERAIS:
+                1. BASE DE VERDADE: Use os dados do contexto (Perfil, Metas, Transações).
+                2. SEGURANÇA: Não peça senhas.
 
-        REGRA DE REGISTRO:
-        Se o usuário solicitar o registro de um gasto ou ganho, você deve enviar um valor POSITIVO para Ganho e NEGATIVO para gasto. e por final confirmar a ação no texto e, OBRIGATORIAMENTE, incluir ao final da resposta o seguinte formato:
-        #SAVE#{"descricao": "nome do item", "valor": 100.00, "categoria": "Lazer"}#SAVE#
-        
-        Exemplo: "Com certeza! Registrei sua compra de 150 reais no mercado. #SAVE#{"descricao": "Mercado", "valor": 150.00, "categoria": "Alimentação"}#SAVE#"
-        Mantenha sempre esse formato para que o sistema possa identificar e salvar a transação corretamente.
+                ### REGRA MESTRA DE REGISTROS (LEITURA VS ESCRITA) ###
+                
+                CASO 1: LEITURA (O usuário pergunta saldo, extrato ou metas)
+                - Apenas responda a pergunta com base no contexto.
+                - PROIBIDO usar a tag #SAVE# neste caso.
+                
+                CASO 2: ESCRITA (O usuário pede para CRIAR, ADICIONAR ou REGISTRAR algo novo)
+                - Identifique se é TRANSAÇÃO ou META.
+                - OBRIGATORIAMENTE use o formato JSON no final:
+
+                A) Se for Gasto/Ganho:
+                #SAVE#{"tipo": "transacao", "descricao": "Item", "valor": -100.00, "categoria": "Lazer"}#SAVE#
+                (Lembre-se: Gastos são negativos, Ganhos positivos)
+
+                B) Se for Nova Meta:
+                #SAVE#{"tipo": "meta", "descricao": "Nome da Meta", "valor": 5000.00, "data_limite": "Dez/2026"}#SAVE#
+                
+                IMPORTANTE: Nunca use #SAVE# se o valor for desconhecido ou null.
         """
 
     def _get_provider(self):
-        """Seleciona o provedor usando a chave dinâmica da interface."""
-        if self.mode == "local":
-            return OllamaProvider()
-        elif self.mode == "gemini":
-            return GeminiProvider(api_key=self.api_key)
-        elif self.mode == "openai":
-            return OpenAIProvider(api_key=self.api_key)
-        return OllamaProvider() # Fallback seguro
+        if self.mode == "local": return OllamaProvider()
+        elif self.mode == "gemini": return GeminiProvider(api_key=self.api_key)
+        elif self.mode == "openai": return OpenAIProvider(api_key=self.api_key)
+        return OllamaProvider()
 
     async def run(self, user_query: str):
-            context = self.retriever.get_relevant_context(user_query)
-            full_system_prompt = f"{self.system_prompt_base}\n\n### CONTEXTO ###\n{context}"
+        context = self.retriever.get_relevant_context(user_query)
+        full_system_prompt = f"{self.system_prompt_base}\n\n### CONTEXTO ###\n{context}"
+        
+        response = await self.provider.generate_response(full_system_prompt, user_query)
+        
+        # LÓGICA DE ROTEAMENTO
+        if "#SAVE#" in response:
+            try:
+                clean_response = response.split("#SAVE#")[0].strip()
+                json_str = response.split("#SAVE#")[1]
+                data_to_save = json.loads(json_str)
+                
+                tipo_acao = data_to_save.get("tipo")
+                sucesso = False
             
-            response = await self.provider.generate_response(full_system_prompt, user_query)
-            
-            # Lógica de interceptação de salvamento
-            if "#SAVE#" in response:
-                try:
-                    # Extrai o conteúdo entre as tags #SAVE#
-                    json_str = response.split("#SAVE#")[1]
-                    data_to_save = json.loads(json_str)
-                    
-                    # Executa a gravação física
+                if tipo_acao == "transacao":
                     sucesso = self.retriever.add_transaction(
                         descricao=data_to_save["descricao"],
                         valor=data_to_save["valor"],
-                        categoria=data_to_save.get("categoria", "Outros")
+                        categoria=data_to_save.get("categoria", "Geral")
                     )
-                    
-                    if sucesso:
-                        # Remove a tag técnica da resposta para o usuário não ver o JSON
-                        clean_response = response.split("#SAVE#")[0]
-                        return f"{clean_response}\n\n✅ *Transação registrada no sistema!*"
-                except Exception as e:
-                    print(f"Erro no processamento do salvamento: {e}")
-            
-            return response
+                    msg_confirmacao = "\n\n✅ *Transação registrada e saldo atualizado!*"
+                
+                elif tipo_acao == "meta":
+                    sucesso = self.retriever.add_goal(
+                        descricao=data_to_save["descricao"],
+                        valor_alvo=data_to_save["valor"],
+                        data_limite=data_to_save.get("data_limite")
+                    )
+                    msg_confirmacao = "\n\n🎯 *Nova meta definida com sucesso!*"
+
+                if sucesso:
+                    return f"{clean_response}{msg_confirmacao}"
+                else:
+                    return f"{clean_response}\n\n❌ *Erro ao salvar no disco.*"
+
+            except Exception as e:
+                print(f"Erro no Router de salvamento: {e}")
+        
+        return response
