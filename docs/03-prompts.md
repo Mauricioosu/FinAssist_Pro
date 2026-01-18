@@ -111,11 +111,3 @@ Vale a pena investir em Criptomoedas agora?
 Investimentos em criptoativos são de alto risco e volatilidade. Como sou um assistente focado em educação e seu perfil atual é 'Conservador', esse ativo não se encaixa na sua estratégia atual. Recomendo primeiro consolidar sua reserva de emergência antes de explorar mercados de risco.
 
 ```
-
----
-
-## Observações e Aprendizados
-
-Ajuste 1: Adicionei a instrução de "explicar a fórmula" no System Prompt, pois a IA tendia a dar apenas o valor final, o que diminuía o valor educativo do projeto.
-
-Ajuste 2: Forcei a admissão de ignorância sobre dados em tempo real para evitar que o agente inventasse cotações de ações do dia, garantindo a integridade da informação (Anti-Alucinação).
