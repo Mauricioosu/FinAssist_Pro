@@ -5,7 +5,7 @@ import chainlit as cl
 from chainlit.input_widget import Select, TextInput
 from modules.orchestrator import FinAssistOrchestrator
 
-DATA_PATH = "data/"
+DATA_PATH = "../data/"
 
 # --- FUNÇÕES DE APOIO ---
 
@@ -41,8 +41,13 @@ async def run_onboarding():
     await cl.Message(content="👋 Olá! Sou o FinAssist Pro. Vamos configurar sua base financeira.").send()
     
     # Coleta Nome
-    res_nome = await cl.AskUserMessage(content="Qual é o seu nome?", timeout=60).send()
-    nome_usuario = res_nome['output']
+    res_nome = await cl.AskUserMessage(content="Qual é o seu nome?", timeout=120).send()
+
+    if res_nome is None:
+        await cl.Message(content="⚠️ O tempo de resposta expirou. Reinicie o chat para configurar.").send()
+        return
+
+    nome_usuario = res_nome.get('output', "Usuário")
 
     # Coleta Perfil com Validação
     perfil_escolhido = None
@@ -59,7 +64,7 @@ async def run_onboarding():
         if resposta in opcoes_validas:
             perfil_escolhido = resposta.capitalize()
         else:
-            # Se o usuário perguntar "o que é?" ou der resposta inválida, o bot explica
+            # resposta inválida, o bot explica
             await cl.Message(content=(
                 "💡 **Dica do FinAssist Pro:**\n"
                 "- **Conservador:** Prioriza segurança e quer evitar perdas a todo custo.\n"
@@ -93,6 +98,7 @@ async def run_onboarding():
         json.dump([], f, ensure_ascii=False, indent=4)
 
     await cl.Message(content=f"✅ Tudo pronto, **{nome_usuario}**! Perfil **{perfil_escolhido}** configurado.").send()
+    
 # --- FLUXO PRINCIPAL DO CHAINLIT ---
 
 @cl.on_chat_start
@@ -103,10 +109,8 @@ async def start():
     perfil_path = os.path.join(DATA_PATH, "perfil_investidor.json")
     
     if not os.path.exists(perfil_path):
-        # Se não existe, força o interrogatório
         await run_onboarding()
     
-    # Carregamento Pós-Onboarding (Garante que os dados novos entrem na sessão)
     data = {
         "perfil_investidor": load_json("perfil_investidor.json"),
         "produtos_financeiros": load_json("produtos_financeiros.json") or [],
@@ -114,11 +118,9 @@ async def start():
         "objetivos_financeiros": load_json("objetivos_financeiros.json") or []
     }
     
-    # Ancoragem na Sessão
     cl.user_session.set("financial_data", data)
     
-    # Inicializa o orquestrador já com o 'data' carregado
-    orchestrator = FinAssistOrchestrator(mode="local") # Padrão Llama 3
+    orchestrator = FinAssistOrchestrator(mode="local")
     cl.user_session.set("orchestrator", orchestrator)
     
     await cl.Message(content=f"Bem-vindo de volta, {data['perfil_investidor']['nome']}!").send()
@@ -143,6 +145,5 @@ async def main(message: cl.Message):
         await cl.Message(content="Erro: Orquestrador não inicializado.").send()
         return
 
-    # Executa lógica de pensamento e resposta
     response = await orchestrator.run(message.content)
     await cl.Message(content=response).send()
