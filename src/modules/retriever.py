@@ -10,12 +10,13 @@ class FinancialRetriever:
         self.data = data if data else self._load_all_data()
 
     def _load_all_data(self):
-        # Carrega a base de verdade
+        """Carrega a base de verdade de forma robusta e absoluta."""
         data = {}
         paths = {
             "perfil_investidor": os.path.join(self.data_path, "perfil_investidor.json"),
             "transacoes": os.path.join(self.data_path, "transacoes.csv"),
-            "objetivos_financeiros": os.path.join(self.data_path, "objetivos_financeiros.json")
+            "objetivos_financeiros": os.path.join(self.data_path, "objetivos_financeiros.json"),
+            "produtos_financeiros": os.path.join(self.data_path, "produtos_financeiros.json")
         }
 
         # Carregar Perfil
@@ -45,13 +46,10 @@ class FinancialRetriever:
                 data["objetivos_financeiros"] = []
         else:
             data["objetivos_financeiros"] = []
-
-        return data
-        # Carregar Produtos Financeiros
-        path_prod = os.path.join(self.data_path, "produtos_financeiros.json")
-        if os.path.exists(path_prod):
+        # Carregar Produtos (Somente Leitura)
+        if os.path.exists(paths["produtos_financeiros"]):
             try:
-                with open(path_prod, 'r', encoding='utf-8') as f:
+                with open(paths["produtos_financeiros"], 'r', encoding='utf-8') as f:
                     data["produtos_financeiros"] = json.load(f)
             except Exception:
                 data["produtos_financeiros"] = []
@@ -100,11 +98,19 @@ class FinancialRetriever:
                 txt_metas += f"[ID: {idx}] {m['descricao']}: Alvo R$ {m['valor_alvo']} - {status}\n"
             context.append(txt_metas)
 
-        # Exibe transações se houver intenção ou palavras-chave
-        keywords_edit = ["editar", "mudar", "alterar", "corrigir", "trocar", "atualizar"]
-        keywords_transacoes = ["gasto", "compra", "ganhei", "salário", "extrato", "transação", "pagar", "receber", "remover", "deletar", "excluir"]
-        should_show = any(word in query.lower() for word in keywords_transacoes + keywords_edit)
-        if should_show:
+        # Contexto de Investimentos
+        keywords_invest = ["investir", "rendimento", "aplicar", "onde colocar", "recomendação", "cdb", "tesouro"]
+        if any(k in query.lower() for k in keywords_invest):
+            produtos = self.data.get("produtos_financeiros", [])
+            if produtos:
+                txt_prod = "PRODUTOS FINANCEIROS DISPONÍVEIS (Apenas Leitura):\n"
+                for p in produtos:
+                    txt_prod += f"- {p.get('nome')} ({p.get('tipo')}): Rentabilidade {p.get('rentabilidade')} | Risco {p.get('risco')}\n"
+                context.append(txt_prod)
+
+        # Contexto de Transações (CRUD)
+        keywords_crud = ["editar", "mudar", "alterar", "corrigir", "gasto", "compra", "ganhei", "transação", "remover", "deletar"]
+        if any(word in query.lower() for word in keywords_crud):
             df = self.data.get("transacoes")
             if df is not None and not df.empty:
                 ultimas = df.tail(8).reset_index()
@@ -112,27 +118,9 @@ class FinancialRetriever:
                 txt_transacoes += ultimas[['index', 'data', 'descricao', 'valor', 'categoria']].to_string(index=False)
                 context.append(txt_transacoes)
 
-        # INJEÇÃO DE PRODUTOS FINANCEIROS
-        keywords_invest = [
-            "investir", "rendimento", "aplicar", "onde colocar",
-            "recomendação", "cdb", "tesouro", "lci", "lca", "poupança",
-            "fundo", "risco", "melhor opção"
-        ]
-        if any(k in query.lower() for k in keywords_invest):
-            produtos = self.data.get("produtos_financeiros", [])
-            if produtos:
-                txt_prod = "PRODUTOS FINANCEIROS DISPONÍVEIS (Use para recomendação):\n"
-                for p in produtos:
-                    nome = p.get('nome', 'Produto')
-                    tipo = p.get('tipo', 'Renda Fixa')
-                    rentab = p.get('rentabilidade', 'N/A')
-                    risco = p.get('risco', 'N/A')
-                    liquidez = p.get('liquidez', 'N/A')
-                    txt_prod += f"- {nome} ({tipo}): Rentabilidade {rentab} | Risco {risco} | Liq. {liquidez}\n"
-                context.append(txt_prod)
         return "\n\n".join(context) if context else "Nenhum contexto financeiro disponível."
 
-    # CRUD OPERATIOS
+    # --- CRUD OPERATIONS ---
 
     def add_transaction(self, descricao, valor, categoria="Geral", prioridade="Média"):
         df = self.data.get("transacoes")
@@ -147,16 +135,17 @@ class FinancialRetriever:
             "prioridade": str(prioridade)
         }
         try:
+            # Concatenação segura
             df = pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
             self._save_csv(df)
             self._update_balance_file(float(valor))
+            print(f"DEBUG: Transação salva com sucesso! Novo total de linhas: {len(df)}")
             return True
         except Exception as e:
-            print(f"Erro ADD: {e}")
+            print(f"Erro CRÍTICO no add_transaction: {e}")
             return False
 
     def update_transaction(self, idx, **kwargs):
-        # Atualiza uma transação existente e corrige o saldo
         df = self.data.get("transacoes")
         if df is None or df.empty:
             return False
@@ -164,17 +153,13 @@ class FinancialRetriever:
             idx = int(idx)
             if idx not in df.index:
                 return False
-
-            # Retira o antigo, põe o novo
             valor_antigo = df.loc[idx, 'valor']
             novo_valor = kwargs.get('valor', valor_antigo)
-            # Atualiza colunas solicitadas
             for key, val in kwargs.items():
                 if key in df.columns:
                     df.at[idx, key] = val
-            self._save_csv(df)
 
-            # Ajuste de Saldo
+            self._save_csv(df)
             if novo_valor != valor_antigo:
                 delta = float(novo_valor) - float(valor_antigo)
                 self._update_balance_file(delta)
@@ -187,7 +172,6 @@ class FinancialRetriever:
         df = self.data.get("transacoes")
         if df is None or df.empty:
             return False
-
         try:
             idx = int(transaction_index)
             if idx in df.index:
