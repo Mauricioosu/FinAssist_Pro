@@ -1,8 +1,3 @@
-# FinAssist Pro - Seu Mentor Financeiro com IA
-
-![Status](https://img.shields.io/badge/Status-Concluído-brightgreen)
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-
 # ⚠️ PROJETO DESCONTINUADO
 
 > **ATENÇÃO:** Este repositório representa uma versão legada (v1) e **não está mais sendo mantida**.
@@ -12,6 +7,10 @@ O projeto evoluiu para uma arquitetura completa de Agente de IA Financeiro, foca
 ## 🚀 Acesse a Nova Versão: FinAssist Pro 2.0
 
 🔗 **[CLIQUE AQUI PARA VER O PROJETO ATUAL (V2)](https://github.com/Mauricioosu/FinAssist_Pro_2)**
+
+---
+
+# FinAssist Pro - Seu Mentor Financeiro com IA
 
 O **FinAssist Pro** é um assistente financeiro inteligente que utiliza **RAG (Retrieval-Augmented Generation)** para fornecer consultoria personalizada. Diferente de chatbots comuns, ele possui **memória persistente** e capacidade de **agir** sobre os dados, registrando transações e metas financeiras em arquivos locais.
 
